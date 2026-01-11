@@ -15,6 +15,7 @@ interface AuthStore {
     register: (data: RegisterFormValues) => Promise<ApiResponse<AuthResponse>>;
     login: (data: LoginFormValues) => Promise<ApiResponse<AuthResponse>>;
     getUser: () => Promise<ApiResponse<User>>;
+    updateStorageUsed: (amount: number) => void;
 };
 
 export const useAuthStore = create<AuthStore>()(
@@ -85,6 +86,21 @@ export const useAuthStore = create<AuthStore>()(
                     throw err;
                 }
             },
+
+            updateStorageUsed: (amount: number) => {
+                const user = get().user;
+                if (!user) return;
+
+                const nextValue = Math.max(0, user.storageUsed + amount);
+
+                set({
+                    user: {
+                        ...user,
+                        storageUsed: nextValue,
+                    },
+                });
+            },
+
         }
         )
     )

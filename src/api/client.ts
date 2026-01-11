@@ -12,7 +12,7 @@ export interface ApiRequestConfig extends AxiosRequestConfig {
 export interface ApiResponse<T> {
     status: number;
     message: string;
-    data: T | null;
+    data: T;
     path: string;
     timestamp: string;
 };
@@ -28,7 +28,7 @@ export interface ApiErrorResponse {
 
 const api = axios.create({
     baseURL: "http://localhost:8080",
-    timeout: 5000,
+    timeout: 20000,
 });
 
 const publicRoutes = ["/auth/register", "/auth/login", "/auth/refresh"];

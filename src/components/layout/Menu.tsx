@@ -1,13 +1,6 @@
 import { Box, Folders, Gauge, Heart, LayoutDashboard, Search, Settings2, Trash2, Users } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/store/authStore";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Field, FieldDescription } from "../ui/field";
 import Account from "./Account";
 
 type MenuItemType = {
@@ -62,7 +55,7 @@ export default function Menu() {
 export const MenuItem = ({ icon, label, url, onClick }: MenuItemType) => {
     const location = useLocation();
 
-    const isActive = url ? location.pathname === url : false;
+    const isActive = url ? location.pathname === url || location.pathname.startsWith(`${url}/`) : false;
 
     return (
         <div

@@ -33,7 +33,14 @@ const MainRoutes = () => {
                 )}
 
                 <Route index element={<div>Dashboard</div>} />
-                <Route path="my_files" element={<MyFilesScreen />} />
+
+                {/* <Route path="my_files" element={<MyFilesScreen />} /> */}
+
+                <Route path="my_files">
+                    <Route index element={<MyFilesScreen />} />
+                    <Route path=":id" element={<MyFilesScreen />} />
+                </Route>
+
                 <Route path="favorites" element={<div>Favorites</div>} />
                 <Route path="trash" element={<div>Trash</div>} />
 

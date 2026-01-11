@@ -4,41 +4,73 @@
 // Passo 4: não precisa do flatTree pois os dados ja vão fir flat tree so precisar transformar para recursiva para fins de layout!
 // Passo 5: todas operações serão feitas com arvore plana e automaticamente ela será modificada e o metodo de formatação cuidará da arvore recursiva automatico para o layout!
 
-import { useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import { unflattenTree, type FlatNode, type TreeNode } from "@/types/tree";
-import { ChevronDown, ChevronRight, Copy, Download, File, FilePlus, Folder, FolderOpen, FolderPlus, Pencil, PlusCircle, Star, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, CircleCheckBig, Copy, Download, File, Folder, FolderOpen, Heart, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DialogContext } from "@/context/DIalogProvider";
+import { Spinner } from "../ui/spinner";
+import { useTreeStore } from "@/store/treeStore";
+
+import { toast } from "sonner";
 
 interface FileTreeProps {
     data: FlatNode[];
 }
 
 export function RecursiveTree({ data }: FileTreeProps) {
+    const { open } = useContext(DialogContext);
+    const { upload, updateParent, favorite } = useTreeStore();
+
     const dropzone = useRef<HTMLDivElement>(null);
 
     const [foldersOpen, setFoldersOpen] = useState<string[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
+    const [contextNode, setContextNode] = useState<FlatNode | null>(null);
+    const [selectedNode, setSelectedNode] = useState<FlatNode | null>(null);
+
+
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null | undefined>(undefined);
 
+    const [copied, setCopied] = useState(false);
+
     const folderOpen = (id: string): void => setFoldersOpen(prev => prev.includes(id) ? prev.filter(id => id === id) : [...prev, id]);
+
+    function flattenVisibleTree(
+        nodes: TreeNode[],
+        foldersOpen: string[],
+        result: string[] = []
+    ): string[] {
+        for (const node of nodes) {
+            result.push(node.id);
+
+            if (node.type === "folder" && foldersOpen.includes(node.id) && node.children) {
+                flattenVisibleTree(node.children, foldersOpen, result);
+            }
+        }
+        return result;
+    }
 
     function handleSelect(id: string, e: React.MouseEvent) {
         const isCtrl = e.ctrlKey || e.metaKey;
 
         // 🔹 SHIFT + CLICK (intervalo)
         if (e.shiftKey && lastSelectedId) {
-            const start = data.findIndex(n => n.id === lastSelectedId);
-            const end = data.findIndex(n => n.id === id);
+            // Substituir data.findIndex por flattenVisibleTree
+            const visibleIds = flattenVisibleTree(unflattenTree(data), foldersOpen);
+
+            const start = visibleIds.indexOf(lastSelectedId);
+            const end = visibleIds.indexOf(id);
 
             if (start === -1 || end === -1) return;
 
             const [from, to] = start < end ? [start, end] : [end, start];
-            const range = data.slice(from, to + 1).map(n => n.id);
+            const range = visibleIds.slice(from, to + 1);
 
             setSelectedIds(range);
             return;
@@ -111,7 +143,7 @@ export function RecursiveTree({ data }: FileTreeProps) {
         }
     }
 
-    function handleDrop(e: React.DragEvent) {
+    async function handleDrop(e: React.DragEvent) {
         e.preventDefault();
         setIsDragging(false);
         setHoveredNodeId(undefined);
@@ -121,11 +153,24 @@ export function RecursiveTree({ data }: FileTreeProps) {
 
         if (files.length > 0) { // Fazer upload dos arquivos arrastados com o hoveredNodeId
             console.log("Files dropped in:", hoveredNodeId);
+            try {
+                const response = await upload({ parentId: hoveredNodeId!, files });
+                toast.success(response.message);
+            } catch (err: any) {
+                toast.error(err.message);
+            }
         }
 
         if (text) { // Fazer o update dos parentIds dos nodes usando hoveredNodeId
             const draggedIds = JSON.parse(text);
             console.log(draggedIds, `dropped in ${hoveredNodeId}`);
+
+            try {
+                const response = await updateParent({ parentId: hoveredNodeId!, nodesIds: draggedIds });
+                toast.success(response.message);
+            } catch (err: any) {
+                toast.error(err.message);
+            }
         }
     }
 
@@ -134,21 +179,43 @@ export function RecursiveTree({ data }: FileTreeProps) {
 
         if (!el) {
             console.log("Right click no root");
+            setContextNode(null);
+            setSelectedIds([]);
             return;
         }
 
         const nodeId = el.dataset.nodeId;
-        const nodeType = el.dataset.nodeType;
-        const parentId = el.dataset.parentId || null;
 
         if (nodeId && !selectedIds.includes(nodeId)) {
             handleSelect(nodeId, e);
         }
 
-        console.log(`Right click in: node: ${nodeId}, type: ${nodeType}, parent: ${parentId}`);
+        const node = data.find(item => item.id === nodeId);
+
+        setContextNode(node!);
+
+        if (node?.type === "file") {
+            // adiciona o no parent que é uma pasta
+            setSelectedNode(data.find(item => item.id === node.parentId)!);
+        } else {
+            // adiciona o no da pasta
+            setSelectedNode(node!);
+            if (!foldersOpen.includes(node!.id)) setFoldersOpen([...foldersOpen, node!.id]);
+        }
+
+        console.log(`Right click in: node: `, node);
     }
 
-    const isDisabled: boolean = selectedIds.length > 1;
+    const isDisabled: boolean = selectedIds.length > 1 || selectedIds.length === 0;
+
+    const favoriteNode = async () => {
+        try {
+            const response = await favorite(selectedIds);
+            toast.success(response.message);
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    };
 
     return (
         <ContextMenu>
@@ -158,7 +225,7 @@ export function RecursiveTree({ data }: FileTreeProps) {
             >
                 <ScrollArea
                     id="root"
-                    data-node-id={null}
+                    data-node-id={null} // Tenho que repetir isso no outro layout da lateral
                     ref={dropzone}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
@@ -166,40 +233,94 @@ export function RecursiveTree({ data }: FileTreeProps) {
                     onDrop={handleDrop}
                     className={`min-h-0 h-full w-full border-l border-transparent ${hoveredNodeId === null && "bg-primary/20 border-primary"}`}
                 >
-                    <div className="text-sm font-mono">
-                        {/* Usar o FlatTree para renderizar um json mais facil de trabalhar */}
-                        {unflattenTree(data).map(node => (
-                            <TreeNodeComponent
-                                key={node.id}
-                                node={node}
-                                level={1}
-                                parentId={null}
-                                foldersOpen={foldersOpen}
-                                setFoldersOpen={setFoldersOpen}
-                                selectedIds={selectedIds}
-                                onSelect={handleSelect}
-                                hoveredNodeId={hoveredNodeId}
-                            />
-                        ))}
+                    <div className="text-sm font-mono h-full flex flex-col">
+                        {false ? (
+                            <div className="flex flex-1 items-center justify-center">
+                                <Spinner className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                        ) : (!data || unflattenTree(data).length === 0) ? (
+                            <div className="flex flex-1 items-center justify-center py-5 text-muted-foreground">
+                                Nenhum item para exibir
+                            </div>
+                        ) : (
+                            unflattenTree(data).map(node => (
+                                <TreeNodeComponent
+                                    key={node.id}
+                                    node={node}
+                                    level={1}
+                                    parentId={null}
+                                    foldersOpen={foldersOpen}
+                                    setFoldersOpen={setFoldersOpen}
+                                    selectedIds={selectedIds}
+                                    onSelect={handleSelect}
+                                    hoveredNodeId={hoveredNodeId}
+                                />
+                            ))
+                        )}
                     </div>
                 </ScrollArea>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-52 text-sm font-mono">
-                <ContextMenuItem className='gap-3' disabled={isDisabled}><Folder /> Open</ContextMenuItem>
+                {!isDisabled && <ContextMenuItem className='gap-3' disabled={isDisabled}><Folder /> Open</ContextMenuItem>}
                 <ContextMenuSub>
-                    <ContextMenuSubTrigger className='gap-3' disabled={isDisabled}><PlusCircle className='size-4' /> New</ContextMenuSubTrigger>
+                    <ContextMenuSubTrigger className='gap-3'><PlusCircle className='size-4' /> New</ContextMenuSubTrigger>
                     <ContextMenuSubContent className="w-44">
-                        <ContextMenuItem className='gap-3'><FolderPlus className='size-4' /> Folder</ContextMenuItem>
-                        <ContextMenuItem className='gap-3'><FilePlus className='size-4' /> File</ContextMenuItem>
+                        <ContextMenuItem className='gap-3' onClick={() => {
+                            open("add-folder", { parentNode: selectedNode })
+                            setSelectedNode(null);
+                        }}><Folder className='size-4' /> Folder</ContextMenuItem>
+                        <ContextMenuItem className='gap-3'><File className='size-4' /> File</ContextMenuItem>
                     </ContextMenuSubContent>
                 </ContextMenuSub>
-                <ContextMenuSeparator />
-                <ContextMenuItem className='gap-3' disabled={isDisabled}><Pencil className='size-4' /> Rename</ContextMenuItem>
-                <ContextMenuItem className='gap-3' disabled={false}><Star className='size-4' />Favorite</ContextMenuItem>
-                <ContextMenuItem className='gap-3' disabled={isDisabled}><Copy className='size-4' /> Copy URL</ContextMenuItem>
-                <ContextMenuItem className='gap-3'><Download className='size-4' />Download</ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem className='gap-3' variant="destructive"><Trash2 /> Delete</ContextMenuItem>
+                {selectedIds.length !== 0 && <ContextMenuSeparator />}
+                {!isDisabled &&
+                    <ContextMenuItem className='gap-3' disabled={isDisabled}
+                        onClick={() => {
+                            if (contextNode) open("rename", { node: contextNode })
+                            setSelectedNode(null);
+                        }}
+                    ><Pencil className='size-4' /> Rename</ContextMenuItem>
+                }
+                {contextNode?.type === "file" &&
+                    <ContextMenuItem
+                        className='gap-3'
+                        onSelect={async (e) => {
+                            e.preventDefault(); // 👈 impede fechar o menu
+
+                            if (!contextNode?.url) return;
+
+                            try {
+                                await navigator.clipboard.writeText(contextNode.url);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 1500);
+                                toast.info("Copy url successfully!");
+                            } catch {
+                                toast.error("Erro ao copiar a URL");
+                            }
+                        }}
+                    >
+                        {copied ? <Check className='size-4' /> : <Copy className='size-4' />} Copy URL
+                    </ContextMenuItem>
+                }
+                {selectedIds.length !== 0 &&
+                    <ContextMenuItem className='gap-3' disabled={false} onClick={favoriteNode}>
+                        {contextNode?.isFavorite ? <CircleCheckBig className='size-4' /> : <Heart className='size-4' />} Favorite
+                    </ContextMenuItem>
+                }
+                {selectedIds.length !== 0 && <ContextMenuItem className='gap-3'><Download className='size-4' />Download</ContextMenuItem>}
+                {selectedIds.length !== 0 &&
+                    <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem className='gap-3' variant="destructive"
+                            onClick={() => {
+                                open("remove-nodes", { ids: selectedIds });
+                                setSelectedNode(null);
+                                setSelectedIds([]);
+                            }}
+                            disabled={selectedIds.length === 0}
+                        ><Trash2 /> Delete</ContextMenuItem>
+                    </>
+                }
             </ContextMenuContent>
         </ContextMenu>
     );
@@ -243,7 +364,7 @@ function TreeNodeComponent({
         const idsToDrag = selectedIds.includes(node.id) ? selectedIds : [node.id];
 
         // 2️⃣ Passa pelo DataTransfer como JSON
-        e.dataTransfer.setData("text/plain", JSON.stringify([idsToDrag]));
+        e.dataTransfer.setData("text/plain", JSON.stringify(idsToDrag));
 
         // 3️⃣ Ghost customizado
         const text = idsToDrag.length > 1 ? `${idsToDrag.length} nodes selected` : "1 node selected";
@@ -311,7 +432,9 @@ function TreeNodeComponent({
                     )}
                 </span>
 
-                {node.name} {node.id}
+                {node.name}
+
+                {node.isFavorite && <Heart className="size-4 ml-auto mr-5 flex items-end-safe" color="red" />}
             </div>
 
             {isFolder && isOpen && node.children && (

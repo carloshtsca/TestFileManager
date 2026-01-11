@@ -1,5 +1,6 @@
 import { Progress } from "@/components/ui/progress";
 import { useAuthStore } from "@/store/authStore";
+import { useTreeStore } from "@/store/treeStore";
 import { Box } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +14,8 @@ export default function LoadingScreen({ isAuth }: LoadingScreenProps) {
     const navigate = useNavigate();
 
     const { user, getUser } = useAuthStore();
+    const { getFlatTree } = useTreeStore();
+
     const [progress, setProgress] = useState(0);
 
     const fetchData = async () => {
@@ -24,6 +27,7 @@ export default function LoadingScreen({ isAuth }: LoadingScreenProps) {
 
         try {
             const response = await getUser();
+            await getFlatTree();
 
             clearInterval(interval);
             setProgress(100);
