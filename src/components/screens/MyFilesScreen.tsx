@@ -13,7 +13,6 @@ import { useTreeStore } from "@/store/treeStore";
 import { useAuthStore } from "@/store/authStore";
 
 import { formatBytes } from "@/utils/formatBytes";
-import { toast } from "sonner";
 
 export default function MyFilesScreen() {
     const navigate = useNavigate();
@@ -21,11 +20,8 @@ export default function MyFilesScreen() {
     const { id } = useParams<{ id?: string }>();
     const currentId: string | null = id ?? null;
 
-    const { flatTree, getActiveNodes, getDeletedNodes, getClosestActiveNodeId } = useTreeStore();
+    const { flatTree, getActiveNodes, getDeletedNodes, getFavoriteNodes, getClosestActiveNodeId } = useTreeStore();
     const { user } = useAuthStore();
-
-    const node = currentId === null ? null : getActiveNodes().find(n => n.id === currentId) ?? null;
-    const children = getActiveNodes().filter(n => n.parentId === currentId);
 
     useEffect(() => {
         if (flatTree.length === 0) return;
@@ -86,9 +82,9 @@ export default function MyFilesScreen() {
             </ResizablePanel>
 
             <ResizableHandle withHandle />
-
+        
             <ResizablePanel defaultSize={75}>
-                <ContentNode node={node} children={children} />
+                <ContentNode nodeId={currentId} data={getActiveNodes()} />
             </ResizablePanel>
         </ResizablePanelGroup>
     );

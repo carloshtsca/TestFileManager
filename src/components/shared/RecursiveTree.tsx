@@ -5,7 +5,7 @@
 // Passo 5: todas operações serão feitas com arvore plana e automaticamente ela será modificada e o metodo de formatação cuidará da arvore recursiva automatico para o layout!
 
 import { useContext, useRef, useState } from "react";
-import { unflattenTree, type FlatNode, type TreeNode } from "@/types/tree";
+import { cannotDrop, unflattenTree, type FlatNode, type TreeNode } from "@/types/tree";
 import { Check, ChevronDown, ChevronRight, CircleCheckBig, Copy, Download, File, Folder, FolderOpen, Heart, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -22,7 +22,7 @@ interface FileTreeProps {
 
 export function RecursiveTree({ data }: FileTreeProps) {
     const { open } = useContext(DialogContext);
-    const { upload, updateParent, favorite } = useTreeStore();
+    const { upload, updateParent, favorite, restore, setDraggedIds, draggedIds } = useTreeStore();
 
     const dropzone = useRef<HTMLDivElement>(null);
 
@@ -32,7 +32,6 @@ export function RecursiveTree({ data }: FileTreeProps) {
 
     const [contextNode, setContextNode] = useState<FlatNode | null>(null);
     const [selectedNode, setSelectedNode] = useState<FlatNode | null>(null);
-
 
     const [isDragging, setIsDragging] = useState<boolean>(false);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null | undefined>(undefined);
@@ -125,6 +124,15 @@ export function RecursiveTree({ data }: FileTreeProps) {
         const nodeType = el.dataset.nodeType; // "folder" ou "file"
         const parentId = el.dataset.parentId || null;
 
+        // Decide qual ID usar para hover: folder -> nodeId, file -> parentId
+        const targetId = nodeType === "folder" ? nodeId : parentId;
+
+        // Se não pode dropar aqui, não marca como hovered
+        if (cannotDrop(data, draggedIds, targetId)) {
+            setHoveredNodeId(undefined); // ou null, dependendo do seu caso
+            return;
+        }
+
         if (nodeType === "folder") {
             // abre a pasta se necessário
             folderOpen(nodeId);
@@ -145,6 +153,9 @@ export function RecursiveTree({ data }: FileTreeProps) {
 
     async function handleDrop(e: React.DragEvent) {
         e.preventDefault();
+
+        if (hoveredNodeId === undefined) return;
+
         setIsDragging(false);
         setHoveredNodeId(undefined);
 
@@ -172,6 +183,8 @@ export function RecursiveTree({ data }: FileTreeProps) {
                 toast.error(err.message);
             }
         }
+
+        setDraggedIds([]);
     }
 
     function handleContextMenuCapture(e: React.MouseEvent<HTMLElement>) {
@@ -254,6 +267,7 @@ export function RecursiveTree({ data }: FileTreeProps) {
                                     selectedIds={selectedIds}
                                     onSelect={handleSelect}
                                     hoveredNodeId={hoveredNodeId}
+                                    setDraggedIds={setDraggedIds}
                                 />
                             ))
                         )}
@@ -338,6 +352,8 @@ interface TreeNodeProps {
     onSelect: (id: string, e: React.MouseEvent) => void;
 
     hoveredNodeId: string | null | undefined;
+
+    setDraggedIds: (ids: string[]) => void;
 }
 
 function TreeNodeComponent({
@@ -349,6 +365,7 @@ function TreeNodeComponent({
     selectedIds,
     onSelect,
     hoveredNodeId,
+    setDraggedIds
 }: TreeNodeProps) {
     const isFolder = node.type === "folder";
     const isOpen = foldersOpen.includes(node.id);
@@ -362,6 +379,7 @@ function TreeNodeComponent({
 
         // 1️⃣ Determina os IDs a enviar
         const idsToDrag = selectedIds.includes(node.id) ? selectedIds : [node.id];
+        setDraggedIds(idsToDrag);
 
         // 2️⃣ Passa pelo DataTransfer como JSON
         e.dataTransfer.setData("text/plain", JSON.stringify(idsToDrag));
@@ -389,8 +407,12 @@ function TreeNodeComponent({
         }, 0);
     }
 
+    function handleDragEnd() {
+        setDraggedIds([]);
+    };
+
     return (
-        <div className="select-none" draggable={true} onDragStart={(e) => handleDragStart(e, node)}>
+        <div className="select-none" draggable={true} onDragStart={(e) => handleDragStart(e, node)} onDragEnd={handleDragEnd}>
             <div
                 data-node-id={node.id}
                 data-node-type={node.type}
@@ -452,6 +474,7 @@ function TreeNodeComponent({
                             selectedIds={selectedIds}
                             onSelect={onSelect}
                             hoveredNodeId={hoveredNodeId}
+                            setDraggedIds={setDraggedIds}
                         />
                     ))}
                 </div>

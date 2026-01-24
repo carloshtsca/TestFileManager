@@ -16,8 +16,9 @@ export interface FlatNode {
     size: number;
     contentType: string | null;
     resourceType: string;
-    isExpanded: boolean;
+    isRoot: boolean;
     isFavorite: boolean;
+    deletedPath: string;
     deletedAt: string | null;
     createdAt: string;
     updatedAt: string;
@@ -151,3 +152,41 @@ export function formatNodes(nodes: FlatNode[]): FlatNode[] {
         return a.name.localeCompare(b.name);
     });
 };
+
+export function cannotDrop(
+    nodes: FlatNode[],
+    draggedIds: string[],
+    targetId: string | null | undefined
+): boolean {
+    // Se targetId é undefined, não pode dropar
+    if (targetId === undefined) return true;
+
+    // 1️⃣ Evita mover para dentro de si mesmo ou de seus filhos
+    const allDescendants = new Set<string>();
+
+    function collectDescendants(id: string) {
+        for (const node of nodes) {
+            if (node.parentId === id && !allDescendants.has(node.id)) {
+                allDescendants.add(node.id);
+                collectDescendants(node.id);
+            }
+        }
+    }
+
+    draggedIds.forEach(id => collectDescendants(id));
+
+    if (targetId !== null && (draggedIds.includes(targetId) || allDescendants.has(targetId))) {
+        return true;
+    }
+
+    // 2️⃣ Evita mover para o mesmo pai
+    if (targetId !== null && draggedIds.some(id => {
+        const node = nodes.find(n => n.id === id);
+        return node?.parentId === targetId;
+    })) {
+        return true;
+    }
+
+    // Pode dropar
+    return false;
+}

@@ -9,6 +9,8 @@ import LoginScreen from '@/components/screens/LoginScreen';
 import MyFilesScreen from '@/components/screens/MyFilesScreen';
 import NotFoundScreen from '@/components/screens/NotFoundScreen';
 import RegisterScreen from '@/components/screens/RegisterScreen';
+import FavoriteScreen from '@/components/screens/FavoriteScreen';
+import TrashScreen from '@/components/screens/TrashScreen';
 
 const MainRoutes = () => {
     const user = useAuthStore(state => state.user);
@@ -41,8 +43,8 @@ const MainRoutes = () => {
                     <Route path=":id" element={<MyFilesScreen />} />
                 </Route>
 
-                <Route path="favorites" element={<div>Favorites</div>} />
-                <Route path="trash" element={<div>Trash</div>} />
+                <Route path="favorites" element={<FavoriteScreen />} />
+                <Route path="trash" element={<TrashScreen />} />
 
                 <Route path="*" element={<NotFoundScreen />} />
             </Route>

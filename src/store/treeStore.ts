@@ -5,7 +5,7 @@ import type { FlatNode } from "@/types/tree";
 import type { ApiResponse } from "@/api/client";
 import type { AddFolderFormValues } from "@/schemas/addFolder";
 
-import { addFolder, favorite, getFlatTree, remove, rename, trash, updateParent, upload, type UpdateParentValues, type UploadValues } from "@/api/services/treeService";
+import { addFolder, favorite, getFlatTree, remove, rename, restore, trash, updateParent, upload, type UpdateParentValues, type UploadValues } from "@/api/services/treeService";
 
 import type { RenameFormValues } from "@/schemas/rename";
 
@@ -19,6 +19,8 @@ interface TreeStore {
         put: { loading: boolean },
         delete: { loading: boolean },
     };
+    draggedIds: string[];
+    setDraggedIds: (ids: string[]) => void;
 
     getFlatTree: (deleted?: boolean) => Promise<ApiResponse<FlatNode[]>>;
     addFolder: (data: AddFolderFormValues) => Promise<ApiResponse<FlatNode>>;
@@ -26,12 +28,14 @@ interface TreeStore {
     rename: (data: RenameFormValues) => Promise<ApiResponse<FlatNode>>;
     favorite: (ids: string[]) => Promise<ApiResponse<FlatNode[]>>;
     updateParent: (data: UpdateParentValues) => Promise<ApiResponse<FlatNode[]>>;
+    restore: (ids: string[]) => Promise<ApiResponse<FlatNode[]>>;
     trash: (ids: string[]) => Promise<ApiResponse<{ nodes: FlatNode[]; deleted: boolean }>>;
     remove: (ids: string[]) => Promise<ApiResponse<{ nodes: FlatNode[]; deleted: boolean }>>;
 
     // 🔹 filters:
     getActiveNodes: () => FlatNode[];
     getDeletedNodes: () => FlatNode[];
+    getFavoriteNodes: () => FlatNode[];
     getBreadcrumb: (nodeId: string | null) => FlatNode[];
     getClosestActiveNodeId: (nodeId: string | null) => string | null;
 };
@@ -47,6 +51,8 @@ export const useTreeStore = create<TreeStore>()(
             put: { loading: false },
             delete: { loading: false },
         },
+        draggedIds: [],
+        setDraggedIds: (ids: string[]) => set({ draggedIds: ids }),
 
         getFlatTree: async (deleted = false) => {
             set(state => ({ status: { ...state.status, get: { ...state.status.get, loading: true }, }, }));
@@ -166,6 +172,52 @@ export const useTreeStore = create<TreeStore>()(
             }
         },
 
+        restore: async (ids: string[]) => {
+            set(state => ({
+                status: { ...state.status, put: { loading: true } }
+            }));
+
+            try {
+                const response = await restore(ids);
+
+                if (response.data?.length) {
+                    set(state => {
+                        const updatedMap = new Map(
+                            response.data.map(node => [node.id, node])
+                        );
+
+                        // 1️⃣ substitui os existentes
+                        const updatedFlatTree = state.flatTree.map(
+                            node => updatedMap.get(node.id) ?? node
+                        );
+
+                        // 2️⃣ adiciona os novos (pastas recriadas, etc)
+                        const existingIds = new Set(state.flatTree.map(n => n.id));
+
+                        const newNodes = response.data.filter(
+                            node => !existingIds.has(node.id)
+                        );
+
+                        return {
+                            flatTree: [...updatedFlatTree, ...newNodes],
+                            status: { ...state.status, put: { loading: false } },
+                        };
+                    });
+                } else {
+                    set(state => ({
+                        status: { ...state.status, put: { loading: false } },
+                    }));
+                }
+
+                return response;
+            } catch (err: any) {
+                set(state => ({
+                    status: { ...state.status, put: { loading: false } },
+                }));
+                throw err;
+            }
+        },
+
         trash: async (ids: string[]) => {
             set(state => ({ status: { ...state.status, delete: { loading: true } } }));
 
@@ -225,6 +277,32 @@ export const useTreeStore = create<TreeStore>()(
         },
 
         // Filters:
+        getActiveNodes: () => {
+            return get().flatTree.filter(node => node.deletedAt === null);
+        },
+
+        getDeletedNodes: () => {
+            return get().flatTree
+                .filter(node => node.deletedAt !== null)
+                .map(node => {
+                    if (node.isRoot) {
+                        return { ...node, parentId: null };
+                    }
+                    return node;
+                });
+        },
+
+        getFavoriteNodes: () => {
+            return get().flatTree
+                .filter(node => node.isFavorite && node.deletedAt === null)
+                .map(node => {
+                    if (node.isRoot || node.isFavorite) {
+                        return { ...node, parentId: null };
+                    }
+                    return node;
+                });
+        },
+
         getBreadcrumb: (nodeId: string | null) => {
             if (!nodeId) return [];
 
@@ -244,14 +322,6 @@ export const useTreeStore = create<TreeStore>()(
             }
 
             return breadcrumb;
-        },
-
-        getActiveNodes: () => {
-            return get().flatTree.filter(node => node.deletedAt === null);
-        },
-
-        getDeletedNodes: () => {
-            return get().flatTree.filter(node => node.deletedAt !== null);
         },
 
         getClosestActiveNodeId: (nodeId: string | null): string | null => {

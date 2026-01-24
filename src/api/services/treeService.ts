@@ -44,14 +44,14 @@ export const updateParent = async (data: { parentId: string; nodesIds: string[];
     return await api.put("/tree/update-parent", data);
 };
 
-export const remove = async (ids: string[]): Promise<ApiResponse<{ nodes: FlatNode[]; deleted: boolean }>> => {
-    return api.delete("/tree/delete", { data: ids });
+export const restore = async (ids: string[]): Promise<ApiResponse<FlatNode[]>> => {
+    return api.put("/tree/restore", ids);
 };
 
 export const trash = async (ids: string[]): Promise<ApiResponse<{ nodes: FlatNode[]; deleted: boolean }>> => {
-    return api.delete("/tree/trash", { data: ids });
+    return api.put("/tree/trash", ids);
 };
 
-// export const remove = async (ids: string[]): Promise<ApiResponse<{ ids: string[]; deleted: boolean }>> => {
-//     return api.delete("/tree/delete", { data: ids });
-// };
+export const remove = async (ids: string[]): Promise<ApiResponse<{ nodes: FlatNode[]; deleted: boolean }>> => {
+    return api.delete("/tree/delete", { data: ids });
+};

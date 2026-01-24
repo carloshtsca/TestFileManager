@@ -1,16 +1,17 @@
 import { useNavigate } from "react-router-dom";
 
-import { MdFavorite, MdFavoriteBorder } from "react-icons/md";
-import { FcFolder } from "react-icons/fc";
+import { GoFileDirectoryFill } from "react-icons/go";
 import { FaFile } from "react-icons/fa";
 
 import type { FlatNode } from "@/types/tree";
 
 interface CardNodeProps {
     node: FlatNode;
+    hoveredNodeId: string | null;
+    setDraggedIds: (ids: string[]) => void;
 }
 
-export default function CardNode({ node }: CardNodeProps) {
+export default function CardNode({ node, hoveredNodeId, setDraggedIds }: CardNodeProps) {
     const navigate = useNavigate();
 
     function doubleClick() {
@@ -18,18 +19,20 @@ export default function CardNode({ node }: CardNodeProps) {
             navigate(`/my_files/${node.id}`);
         } else {
             // file
+            alert(`file: ${node.name}`);
         }
     };
 
     return (
         <div
             data-node-id={node.id}
+            data-parent-id={node.parentId}
+            data-node-type={node.type}
             onDoubleClick={doubleClick}
-            className="relative bg-accents w-full  flex flex-col items-center justify-center gap-2 py-5 rounded-md border-2 border-transparent 
-            hover:border-primaryssss hover:bg-accent font-mono select-none"
+            className={`relative bg-accents w-full flex flex-col items-center justify-between gap-2 py-5 rounded-md border-2 border-transparent 
+            hover:border-primaryssss hover:bg-accent font-mono select-none ${hoveredNodeId === node.id && "bg-primary/20"}`}
         >
-            {node.isFavorite && <MdFavorite className='absolute top-2 right-2 text-red-500' />}
-            {node.type === 'folder' ? <FcFolder className="text-[5rem]" /> : <FaFile className='text-[5rem] text-primary' />}
+            {node.type === 'folder' ? <GoFileDirectoryFill className="text-[32px] text-[#F2C94C]" /> : <FaFile className='text-[32px] text-purple-300' />}
             <span className="text-[12px] text-center">{node.name}</span>
         </div>
     );

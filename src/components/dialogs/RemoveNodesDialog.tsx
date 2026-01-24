@@ -17,7 +17,7 @@ export default function RemoveNodesAlertDialog({ open, onClose, ids }: RemoveNod
 
     const removeIds = async () => {
         try {
-            const response = await trash(ids);
+            const response = await remove(ids);
             if (response.data.deleted) {
                 toast.success(response.message);
                 onClose();
